@@ -276,6 +276,7 @@ class OIDCService:
         client_id: str,
         id_token: str,
         nonce: str | None = None,
+        clock_skew_seconds: int = 0,
     ) -> dict[str, Any]:
         """Validate the ID token and return its claims.
 
@@ -308,6 +309,7 @@ class OIDCService:
                 algorithms=allowed_algorithms,
                 audience=client_id,
                 issuer=metadata.issuer,
+                leeway=clock_skew_seconds,
                 options={
                     "verify_exp": True,
                     "verify_iat": True,
@@ -371,6 +373,7 @@ class OIDCService:
         redirect_uri: str,
         code_verifier: str | None = None,
         nonce: str | None = None,
+        clock_skew_seconds: int = 0,
         auth_method: str = "client_secret_post",
     ) -> OIDCIdentity:
         """Orchestrate the full OIDC callback: token exchange, ID token validation, userinfo.
@@ -398,6 +401,7 @@ class OIDCService:
             client_id=client_id,
             id_token=id_token,
             nonce=nonce,
+            clock_skew_seconds=clock_skew_seconds,
         )
 
         # Fetch userinfo for email/name if not present in ID token

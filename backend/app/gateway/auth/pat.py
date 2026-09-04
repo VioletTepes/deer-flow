@@ -33,6 +33,9 @@ PAT_ALLOWED_SCOPES: frozenset[str] = frozenset(
         "runs:create",
         "runs:read",
         "runs:cancel",
+        "projects:read",
+        "projects:write",
+        "projects:delete",
     }
 )
 
@@ -78,6 +81,10 @@ _PAT_ROUTE_RULES: tuple[tuple[frozenset[str], re.Pattern[str]], ...] = (
     (frozenset({"GET", "POST"}), re.compile(r"^/api/threads/[^/]+/runs/[^/]+/stream$")),
     (frozenset({"POST"}), re.compile(r"^/api/runs/(stream|wait)$")),
     (frozenset({"GET"}), re.compile(r"^/api/runs/[^/]+/(messages|feedback)$")),
+    (frozenset({"GET", "POST"}), re.compile(r"^/api/projects$")),
+    (frozenset({"GET", "PATCH", "DELETE"}), re.compile(r"^/api/projects/[^/]+$")),
+    (frozenset({"GET", "POST"}), re.compile(r"^/api/projects/[^/]+/files$")),
+    (frozenset({"GET", "DELETE"}), re.compile(r"^/api/projects/[^/]+/files/[^/]+(/content)?$")),
 )
 
 _BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"

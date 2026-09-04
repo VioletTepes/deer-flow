@@ -10,14 +10,17 @@ from deerflow.sandbox.security import is_host_bash_allowed
 from deerflow.subagents.batch_runtime import is_subagent_batch_runtime_available
 from deerflow.tools.builtins import (
     ask_clarification_tool,
+    attach_project_file,
     batch_status,
     batch_task,
     cancel_background_task,
     cancel_batch,
     list_background_tasks,
+    list_project_files,
     list_uploaded_files,
     present_file_tool,
     review_skill_package,
+    save_project_file,
     task_tool,
     view_image_tool,
 )
@@ -112,6 +115,7 @@ def get_available_tools(
         builtin_tools.extend((list_background_tasks, cancel_background_task))
     if include_upload_tool:
         builtin_tools.append(list_uploaded_files)
+    builtin_tools.extend((list_project_files, attach_project_file, save_project_file))
     skill_evolution_config = getattr(config, "skill_evolution", None)
     if getattr(skill_evolution_config, "enabled", False):
         from deerflow.tools.skill_manage_tool import skill_manage_tool

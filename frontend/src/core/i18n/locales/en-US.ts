@@ -310,8 +310,28 @@ export const enUS: Translations = {
     recentChats: "Recent chats",
     demoChats: "Demo chats",
     agents: "Agents",
+    projects: "Project files",
     scheduledTasks: "Scheduled tasks",
     agentsDisabledTooltip: "Feature not enabled",
+  },
+
+  projects: {
+    title: "Project files",
+    newProject: "New project",
+    projectName: "Project name",
+    create: "Create",
+    cancel: "Cancel",
+    upload: "Upload file",
+    emptyProjects: "No projects yet",
+    emptyFiles: "No saved files",
+    selectProject: "Select a project",
+    deleteProject: "Delete project",
+    deleteProjectConfirm: "Delete this project and all of its saved files?",
+    deleteFile: "Delete file",
+    downloadFile: "Download file",
+    created: "Project created",
+    uploaded: "File saved",
+    deleted: "Deleted",
   },
 
   backgroundTasks: {

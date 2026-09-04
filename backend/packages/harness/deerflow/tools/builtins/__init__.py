@@ -3,6 +3,7 @@ from .batch_task_tool import batch_status, batch_task, cancel_batch
 from .clarification_tool import ask_clarification_tool
 from .list_uploaded_files_tool import list_uploaded_files
 from .present_file_tool import present_file_tool
+from .project_files_tool import attach_project_file, list_project_files, save_project_file
 from .review_skill_package_tool import review_skill_package
 from .setup_agent_tool import setup_agent
 from .task_tool import task_tool
@@ -13,6 +14,9 @@ __all__ = [
     "setup_agent",
     "update_agent",
     "present_file_tool",
+    "list_project_files",
+    "attach_project_file",
+    "save_project_file",
     "review_skill_package",
     "ask_clarification_tool",
     "view_image_tool",

@@ -45,6 +45,12 @@ class OIDCProviderConfig(BaseModel):
     # ── PKCE / nonce ──────────────────────────────────────────────────
     pkce_enabled: bool = Field(default=True, description="Enable PKCE (S256) for the authorization code flow")
     nonce_enabled: bool = Field(default=True, description="Include and validate the nonce claim in ID tokens")
+    clock_skew_seconds: int = Field(
+        default=0,
+        ge=0,
+        le=300,
+        description="Maximum clock skew in seconds accepted for OIDC ID-token time claims.",
+    )
 
     # ── Endpoint overrides (for providers with non-standard discovery) ─
     authorization_endpoint: str | None = Field(default=None)

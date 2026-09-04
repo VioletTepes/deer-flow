@@ -114,6 +114,7 @@ async def test_oidc_validate_id_token_refreshes_jwks_once_on_kid_miss(monkeypatc
         jwks_uri="https://issuer.example.com/jwks",
     )
     load_calls = []
+    decode_calls = []
     resolve_results = [None, "signing-key"]
 
     async def load_jwks(jwks_uri, force_refresh=False):
@@ -123,18 +124,20 @@ async def test_oidc_validate_id_token_refreshes_jwks_once_on_kid_miss(monkeypatc
     async def resolve_signing_key(jwks_data, kid, algorithm, jwks_uri):
         return resolve_results.pop(0)
 
+    def decode(*args, **kwargs):
+        decode_calls.append(kwargs)
+        return {"iss": metadata.issuer, "sub": "subject", "aud": "deer-flow", "exp": 9999999999}
+
     monkeypatch.setattr(service, "_load_jwks", load_jwks)
     monkeypatch.setattr(service, "_resolve_signing_key", resolve_signing_key)
     monkeypatch.setattr("app.gateway.auth.oidc.jwt.get_unverified_header", lambda token: {"kid": "new-kid", "alg": "RS256"})
-    monkeypatch.setattr(
-        "app.gateway.auth.oidc.jwt.decode",
-        lambda *args, **kwargs: {"iss": metadata.issuer, "sub": "subject", "aud": "deer-flow", "exp": 9999999999},
-    )
+    monkeypatch.setattr("app.gateway.auth.oidc.jwt.decode", decode)
 
-    claims = await service.validate_id_token(metadata, "deer-flow", "id-token")
+    claims = await service.validate_id_token(metadata, "deer-flow", "id-token", clock_skew_seconds=30)
 
     assert claims["sub"] == "subject"
     assert load_calls == [False, True]
+    assert decode_calls[0]["leeway"] == 30
     await service.close()
 
 

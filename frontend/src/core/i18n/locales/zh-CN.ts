@@ -293,8 +293,28 @@ export const zhCN: Translations = {
     recentChats: "最近的对话",
     demoChats: "演示对话",
     agents: "智能体",
+    projects: "项目文件",
     scheduledTasks: "定时任务",
     agentsDisabledTooltip: "功能未启用",
+  },
+
+  projects: {
+    title: "项目文件",
+    newProject: "新建项目",
+    projectName: "项目名称",
+    create: "创建",
+    cancel: "取消",
+    upload: "上传文件",
+    emptyProjects: "暂无项目",
+    emptyFiles: "暂无永久保存的文件",
+    selectProject: "选择一个项目",
+    deleteProject: "删除项目",
+    deleteProjectConfirm: "删除此项目及其中所有永久文件？",
+    deleteFile: "删除文件",
+    downloadFile: "下载文件",
+    created: "项目已创建",
+    uploaded: "文件已永久保存",
+    deleted: "已删除",
   },
 
   backgroundTasks: {

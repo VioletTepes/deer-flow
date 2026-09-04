@@ -2777,6 +2777,9 @@ authorization:
 #         # Security features (enabled by default):
 #         pkce_enabled: true               # PKCE (S256) for authorization code flow
 #         nonce_enabled: true              # Nonce validation in ID tokens
+#         # Optional clock skew tolerance for ID-token time claims (seconds).
+#         # Prefer NTP synchronization; keep this small (for example, 30).
+#         clock_skew_seconds: 0
 
 # --- Plugins ----------------------------------------------------------------
 # Extension packages, loaded once at startup in the order listed here. Each

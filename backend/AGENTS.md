@@ -80,6 +80,17 @@ deer-flow/
 ### Documentation Update Policy
 **CRITICAL: Always update README.md and AGENTS.md after every code change**
 
+### Persistent Project Files
+
+Durable user files are implemented by the `projects` persistence package and
+`app.gateway.routers.projects`. Files live under
+`DEER_FLOW_HOME/users/{user_id}/projects/{project_id}/files`, never below a
+thread directory. Project/File repository methods require an owner scope;
+cross-user access is returned as not found. Thread deletion therefore cannot
+remove durable project data. The attach/import service uses mounted thread
+storage when available and `Sandbox.update_file`/`download_file` for remote
+sandboxes. Project roots are not bind-mounted into Docker or Kubernetes pods.
+
 When making code changes, you MUST update the relevant documentation:
 - Update `README.md` for user-facing changes (features, setup, usage instructions)
 - Update `AGENTS.md` for development changes (architecture, commands, workflows, internal systems). `CLAUDE.md` imports it via `@AGENTS.md`, so editing `AGENTS.md` updates both.

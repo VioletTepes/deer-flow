@@ -48,6 +48,13 @@ def _validate_integration_id(integration_id: str) -> str:
     return integration_id
 
 
+def _validate_project_id(project_id: str) -> str:
+    """Validate an opaque project identifier before using it in a path."""
+    if not re.match(r"^[A-Za-z0-9_-]{1,128}$", project_id):
+        raise ValueError("Invalid project_id")
+    return project_id
+
+
 def make_safe_user_id(raw: str) -> str:
     """Normalize an external identity into the user-id charset (``[A-Za-z0-9_-]``).
 
@@ -259,6 +266,31 @@ class Paths:
         global ``{base_dir}/skills/public/`` (read-only).
         """
         return self.user_skills_dir(user_id) / "custom"
+
+    def user_projects_dir(self, user_id: str) -> Path:
+        """Per-user root for persistent projects."""
+        return self.user_dir(_validate_user_id(user_id)) / "projects"
+
+    def project_dir(self, user_id: str, project_id: str) -> Path:
+        """Persistent project root, outside all thread directories."""
+        return self.user_projects_dir(user_id) / _validate_project_id(project_id)
+
+    def project_files_dir(self, user_id: str, project_id: str) -> Path:
+        """Directory containing durable files for one user's project."""
+        return self.project_dir(user_id, project_id) / "files"
+
+    def project_file_path(self, user_id: str, project_id: str, relative_path: str) -> Path:
+        """Resolve a project-relative file path without allowing traversal."""
+        base = self.project_files_dir(user_id, project_id).resolve()
+        candidate = (base / relative_path).resolve()
+        try:
+            candidate.relative_to(base)
+        except ValueError as exc:
+            raise ValueError("Project file path escapes the project directory") from exc
+        return candidate
+
+    def ensure_project_dirs(self, user_id: str, project_id: str) -> None:
+        self.project_files_dir(user_id, project_id).mkdir(parents=True, exist_ok=True)
 
     def integration_skills_dir(self) -> Path:
         """Globally installed managed integration skills.

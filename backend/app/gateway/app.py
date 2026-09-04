@@ -31,6 +31,7 @@ from app.gateway.routers import (
     mcp_tasks,
     memory,
     models,
+    projects,
     runs,
     scheduled_tasks,
     skills,
@@ -815,6 +816,9 @@ This gateway provides runtime endpoints for agent runs plus custom endpoints for
 
     # Uploads API is mounted at /api/threads/{thread_id}/uploads
     app.include_router(uploads.router)
+
+    # Persistent user-scoped project files API
+    app.include_router(projects.router)
 
     # Thread cleanup API is mounted at /api/threads/{thread_id}
     app.include_router(threads.router)

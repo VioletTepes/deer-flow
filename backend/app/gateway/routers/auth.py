@@ -1048,6 +1048,7 @@ async def oauth_callback(
             code_verifier=state_payload.code_verifier,
             nonce=state_payload.nonce,
             auth_method=provider_config.token_endpoint_auth_method,
+            clock_skew_seconds=provider_config.clock_skew_seconds,
         )
     except OIDCError as exc:
         logger.error("OIDC callback authentication failed for %s: %s", provider, exc)

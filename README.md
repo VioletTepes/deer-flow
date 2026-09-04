@@ -1228,6 +1228,17 @@ For example, independent read-only research can run concurrently when the wall-c
 
 ### Sandbox & File System
 
+#### Persistent Project Files
+
+The workspace includes `/workspace/projects` for user-isolated durable files.
+Project data is stored below `DEER_FLOW_HOME/users/{user_id}/projects/`, outside
+thread directories, so deleting a conversation does not delete saved files.
+The Project Files page supports project creation and file upload, download, and
+deletion. Files can be explicitly attached to a thread or imported from a
+thread workspace. Mounted sandboxes use the thread workspace; remote sandboxes
+transfer bytes through the sandbox API, and project roots are never exposed as
+shared writable mounts.
+
 `E2BSandboxProvider` uses `wait` as its default overflow policy. It waits for
 `acquire_timeout`, then fails the agent turn. DeerFlow does not retry the turn
 automatically. Clients can use the structured error to schedule a retry.

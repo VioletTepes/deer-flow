@@ -48,7 +48,7 @@ from deerflow.persistence.migrations._helpers import _normalize_default
 asyncio_test = pytest.mark.asyncio
 
 
-HEAD = "0018_oauth_identity_pg_partial"
+HEAD = "0019_projects_files"
 BASELINE = "0001_baseline"
 
 
@@ -144,6 +144,8 @@ async def test_empty_branch_creates_all_and_stamps_head(tmp_path: Path) -> None:
             "channel_conversations",
             "channel_oauth_states",
             "alembic_version",
+            "projects",
+            "project_files",
         }:
             assert required in tables, f"missing table: {required}"
         assert "token_usage_by_model" in await _runs_columns(engine)

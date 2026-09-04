@@ -78,11 +78,21 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV PYTHONIOENCODING=utf-8
+# Keep Playwright-managed browsers in the image instead of the container's
+# root cache, which is replaced when the gateway container is recreated.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # ── Stage 2: Dev ──────────────────────────────────────────────────────────────
 # Retains compiler toolchain from builder so startup-time `uv sync` can build
 # source distributions in development containers.
 FROM builder AS dev
+
+# Browser control is enabled by config-driven extra detection in the dev
+# entrypoint. Install its Python dependency and Chromium into the dev image so
+# the runtime sync does not leave a usable Playwright package without a browser.
+RUN cd backend \
+    && uv sync --locked --all-packages --extra redis --extra browser \
+    && uv run --no-sync playwright install --with-deps chromium
 
 # Install Docker CLI (for DooD: allows starting sandbox containers via host Docker socket)
 COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
@@ -98,6 +108,7 @@ FROM python:3.12-slim-bookworm
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV PYTHONIOENCODING=utf-8
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Copy Node.js runtime from builder (provides npx for MCP servers)
 COPY --from=builder /usr/bin/node /usr/bin/node
