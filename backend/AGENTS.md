@@ -91,6 +91,12 @@ remove durable project data. The attach/import service uses mounted thread
 storage when available and `Sandbox.update_file`/`download_file` for remote
 sandboxes. Project roots are not bind-mounted into Docker or Kubernetes pods.
 
+**MatrixMed remote Sandbox** lives in `packages/harness/deerflow/community/matrixmed/`. It receives only the
+request-scoped authenticated OIDC subject and a server-owned `matrixmed_project_key`; neither may originate from
+an Agent argument. It creates a short-lived remote context for each DeerFlow thread, translates virtual paths to
+the Sandbox API's logical paths, and uses that context for immutable project-file operations. It never starts or
+uses a Jupyter kernel.
+
 When making code changes, you MUST update the relevant documentation:
 - Update `README.md` for user-facing changes (features, setup, usage instructions)
 - Update `AGENTS.md` for development changes (architecture, commands, workflows, internal systems). `CLAUDE.md` imports it via `@AGENTS.md`, so editing `AGENTS.md` updates both.

@@ -27,6 +27,7 @@ from deerflow.sandbox.lease import (
     sandbox_lease_owner,
 )
 from deerflow.sandbox.overwrite import unwrap_sandbox
+from deerflow.sandbox.runtime_identity import sandbox_identity_scope
 
 logger = logging.getLogger(__name__)
 
@@ -119,16 +120,18 @@ class SandboxMiddleware(AgentMiddleware[SandboxMiddlewareState]):
         *,
         user_id: str,
         owner_id: str | None,
+        runtime_context: dict | None,
     ) -> str:
         provider = get_sandbox_provider()
-        if owner_id is None:
-            sandbox_id = provider.acquire(thread_id, user_id=user_id)
-        else:
-            sandbox_id = get_sandbox_lease_manager(provider).acquire(
-                owner_id,
-                thread_id,
-                user_id=user_id,
-            )
+        with sandbox_identity_scope(runtime_context):
+            if owner_id is None:
+                sandbox_id = provider.acquire(thread_id, user_id=user_id)
+            else:
+                sandbox_id = get_sandbox_lease_manager(provider).acquire(
+                    owner_id,
+                    thread_id,
+                    user_id=user_id,
+                )
         logger.info(f"Acquiring sandbox {sandbox_id}")
         return sandbox_id
 
@@ -138,16 +141,18 @@ class SandboxMiddleware(AgentMiddleware[SandboxMiddlewareState]):
         *,
         user_id: str,
         owner_id: str | None,
+        runtime_context: dict | None,
     ) -> str:
         provider = get_sandbox_provider()
-        if owner_id is None:
-            sandbox_id = await provider.acquire_async(thread_id, user_id=user_id)
-        else:
-            sandbox_id = await get_sandbox_lease_manager(provider).acquire_async(
-                owner_id,
-                thread_id,
-                user_id=user_id,
-            )
+        with sandbox_identity_scope(runtime_context):
+            if owner_id is None:
+                sandbox_id = await provider.acquire_async(thread_id, user_id=user_id)
+            else:
+                sandbox_id = await get_sandbox_lease_manager(provider).acquire_async(
+                    owner_id,
+                    thread_id,
+                    user_id=user_id,
+                )
         logger.info(f"Acquiring sandbox {sandbox_id}")
         return sandbox_id
 
@@ -261,6 +266,7 @@ class SandboxMiddleware(AgentMiddleware[SandboxMiddlewareState]):
                 thread_id,
                 user_id=user_id,
                 owner_id=owner_id,
+                runtime_context=runtime.context,
             )
             if runtime.context is not None:
                 runtime.context["sandbox_id"] = sandbox_id
@@ -336,6 +342,7 @@ class SandboxMiddleware(AgentMiddleware[SandboxMiddlewareState]):
                 thread_id,
                 user_id=user_id,
                 owner_id=owner_id,
+                runtime_context=runtime.context,
             )
             if runtime.context is not None:
                 runtime.context["sandbox_id"] = sandbox_id

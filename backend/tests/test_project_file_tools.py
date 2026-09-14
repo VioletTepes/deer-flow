@@ -32,6 +32,31 @@ class ConflictingProjectRepository(FakeProjectRepository):
         raise IntegrityError("INSERT", {}, Exception("UNIQUE constraint failed"))
 
 
+class FakeMatrixMedSandbox:
+    project_key = "study-alpha"
+
+    def __init__(self):
+        self.saved: list[tuple[str, str | None, str]] = []
+        self.attached: list[tuple[str, int | None, str | None]] = []
+
+    def list_project_files(self):
+        return [{
+            "file_id": "123e4567-e89b-12d3-a456-426614174001",
+            "version": 2,
+            "display_name": "analysis.ipynb",
+            "kind": "notebook",
+            "size_bytes": 42,
+        }]
+
+    def save_project_file(self, path, *, display_name=None, kind="other"):
+        self.saved.append((path, display_name, kind))
+        return {"file_id": "123e4567-e89b-12d3-a456-426614174001", "version": 3, "display_name": display_name, "size_bytes": 11}
+
+    def attach_project_file(self, file_id, *, version=None, target_name=None):
+        self.attached.append((file_id, version, target_name))
+        return {"file_id": file_id, "version": version, "display_name": "analysis.ipynb"}, f"/mnt/user-data/workspace/project/{file_id}/{target_name}"
+
+
 def _runtime(thread_id="thread-1", user_id="alice"):
     return SimpleNamespace(context={"thread_id": thread_id, "user_id": user_id}, config={}, state={})
 
@@ -135,3 +160,49 @@ def test_project_file_tool_descriptions_cover_natural_language_scope():
     assert "persistent files" in description
     assert "跨会话保存的文件" in description
     assert "current conversation workspace" in description
+
+
+@pytest.mark.asyncio
+async def test_matrixmed_project_files_use_only_the_context_project(monkeypatch):
+    import deerflow.sandbox.tools as sandbox_tools
+
+    sandbox = FakeMatrixMedSandbox()
+    monkeypatch.setattr(module, "get_sandbox_provider", lambda: SimpleNamespace(project_file_json=lambda *args, **kwargs: {}))
+
+    async def ensure(_runtime):
+        return sandbox
+
+    monkeypatch.setattr(sandbox_tools, "ensure_sandbox_initialized_async", ensure)
+
+    listed = await module.list_project_files.coroutine(_runtime(), "study-alpha")
+    attached = await module.attach_project_file.coroutine(_runtime(), "study-alpha", "analysis.ipynb")
+    saved = await module.save_project_file.coroutine(_runtime(), "study-alpha", "/mnt/user-data/jupyter/analysis.ipynb")
+
+    assert listed["files"][0]["file_id"] == "123e4567-e89b-12d3-a456-426614174001"
+    assert attached["success"] is True
+    assert attached["virtual_path"].endswith("/analysis.ipynb")
+    assert saved["success"] is True
+    assert sandbox.attached == [("123e4567-e89b-12d3-a456-426614174001", 2, "analysis.ipynb")]
+    assert sandbox.saved == [("/mnt/user-data/jupyter/analysis.ipynb", "analysis.ipynb", "notebook")]
+
+
+@pytest.mark.asyncio
+async def test_matrixmed_project_files_reject_a_different_project(monkeypatch):
+    import deerflow.sandbox.tools as sandbox_tools
+
+    sandbox = FakeMatrixMedSandbox()
+    monkeypatch.setattr(module, "get_sandbox_provider", lambda: SimpleNamespace(project_file_json=lambda *args, **kwargs: {}))
+
+    async def ensure(_runtime):
+        return sandbox
+
+    monkeypatch.setattr(sandbox_tools, "ensure_sandbox_initialized_async", ensure)
+    listed = await module.list_project_files.coroutine(_runtime(), "study-beta")
+    attached = await module.attach_project_file.coroutine(_runtime(), "study-beta", "analysis.ipynb")
+    saved = await module.save_project_file.coroutine(_runtime(), "study-beta", "/mnt/user-data/outputs/report.pdf")
+
+    assert listed["files"] == []
+    assert attached["success"] is False
+    assert saved["success"] is False
+    assert not sandbox.saved
+    assert not sandbox.attached

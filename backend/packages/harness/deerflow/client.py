@@ -89,6 +89,10 @@ _EMBEDDED_AUTHORIZATION_CONTEXT_KEYS = frozenset(
         "channel_user_id",
         "is_internal",
         "authz_attributes",
+        # Set only by the trusted research-project entry after it has checked
+        # membership and project state. MatrixMed's remote provider reads this
+        # value from the request-scoped context; it is never an Agent argument.
+        "matrixmed_project_key",
     }
 )
 

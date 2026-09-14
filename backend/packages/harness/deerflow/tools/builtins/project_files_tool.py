@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import mimetypes
 import uuid
@@ -42,6 +43,65 @@ def _safe_name(name: str) -> str:
 def _repo() -> ProjectRepository | None:
     session_factory = get_session_factory()
     return ProjectRepository(session_factory) if session_factory is not None else None
+
+
+async def _matrixmed_project_sandbox(runtime: Runtime) -> Any | None:
+    """Return the current MatrixMed sandbox only when its V1 file API is usable.
+
+    Other DeerFlow providers retain the existing local ProjectRepository path.
+    MatrixMed must never read that local repository: its project membership and
+    file scope are already bound into the Sandbox context token.
+    """
+    try:
+        provider = get_sandbox_provider()
+    except (FileNotFoundError, ValueError):
+        # Legacy project-file callers can run before a sandbox configuration is
+        # loaded (for example, during local maintenance).  In that case retain
+        # their existing repository-backed behavior rather than making an
+        # optional MatrixMed integration a global configuration prerequisite.
+        return None
+    if not hasattr(provider, "project_file_json"):
+        return None
+    from deerflow.sandbox.tools import ensure_sandbox_initialized_async
+
+    sandbox = await ensure_sandbox_initialized_async(runtime)
+    if not all(hasattr(sandbox, method) for method in ("list_project_files", "save_project_file", "attach_project_file", "project_key")):
+        return None
+    return sandbox
+
+
+def _matrixmed_project_matches(sandbox: Any, project_ref: str) -> bool:
+    """A MatrixMed context authorizes exactly one project, never a caller name."""
+    return isinstance(project_ref, str) and project_ref == sandbox.project_key
+
+
+def _matrixmed_kind(name: str) -> str:
+    suffix = Path(name).suffix.casefold()
+    if suffix == ".ipynb":
+        return "notebook"
+    if suffix in {".py", ".r", ".jl", ".sql"}:
+        return "source"
+    if suffix in {".sh", ".bash"}:
+        return "script"
+    if suffix in {".png", ".jpg", ".jpeg", ".svg"}:
+        return "chart"
+    if suffix in {".pdf", ".docx", ".md", ".html"}:
+        return "report"
+    return "other"
+
+
+def _matrixmed_file_view(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "file_id": record.get("file_id"),
+        "name": record.get("display_name"),
+        "version": record.get("version"),
+        "size": record.get("size_bytes"),
+        "kind": record.get("kind"),
+        "status": "active",
+        "content_available": True,
+        "path": None,
+        "access": "Call attach_project_file to materialize this immutable version in the current sandbox.",
+    }
 
 
 def _name_conflict_result(project: dict[str, Any], name: str) -> dict[str, Any]:
@@ -92,6 +152,18 @@ async def list_project_files(
     sandbox path. Call ``attach_project_file`` before reading a durable file
     with shell or document tools.
     """
+    matrixmed = await _matrixmed_project_sandbox(runtime)
+    if matrixmed is not None:
+        if project_name is not None and not _matrixmed_project_matches(matrixmed, project_name):
+            return {"projects": [], "files": [], "message": "The requested project is outside the current authorized Sandbox context."}
+        files = [_matrixmed_file_view(item) for item in await asyncio.to_thread(matrixmed.list_project_files)]
+        project = {"project_id": matrixmed.project_key, "project_name": matrixmed.project_key, "files": files}
+        return {
+            "projects": [project],
+            "files": files,
+            "message": "Immutable project files listed for the current authorized research project.",
+        }
+
     user_id = resolve_runtime_user_id(runtime)
     repo = _repo()
     result_projects: list[dict[str, Any]] = []
@@ -146,6 +218,35 @@ async def attach_project_file(
     analyze a persistent file. It returns the only path that sandbox tools may
     use. It does not delete or move the durable copy.
     """
+    matrixmed = await _matrixmed_project_sandbox(runtime)
+    if matrixmed is not None:
+        if not _matrixmed_project_matches(matrixmed, project_ref):
+            return {"success": False, "message": "The requested project is outside the current authorized Sandbox context."}
+        name = _safe_name(file_name)
+        files = await asyncio.to_thread(matrixmed.list_project_files)
+        record = next(
+            (item for item in files if item.get("display_name") == name or item.get("file_id") == file_name),
+            None,
+        )
+        if record is None or not isinstance(record.get("file_id"), str):
+            return {"success": False, "message": "Project file not found in the current authorized project."}
+        attached, virtual_path = await asyncio.to_thread(
+            matrixmed.attach_project_file,
+            record["file_id"],
+            version=record.get("version") if isinstance(record.get("version"), int) else None,
+            target_name=_safe_name(target_name or name),
+        )
+        return {
+            "success": True,
+            "project_id": matrixmed.project_key,
+            "project_name": matrixmed.project_key,
+            "file_id": attached.get("file_id"),
+            "version": attached.get("version"),
+            "file_name": attached.get("display_name", name),
+            "virtual_path": virtual_path,
+            "message": "Immutable project file attached to the current sandbox.",
+        }
+
     user_id = resolve_runtime_user_id(runtime)
     project = await _resolve_project(project_ref, user_id)
     if project is None:
@@ -183,15 +284,41 @@ async def attach_project_file(
 async def save_project_file(
     runtime: Runtime,
     project_ref: Annotated[str, "Project name or project ID."],
-    virtual_path: Annotated[str, "File path in /mnt/user-data/workspace or /mnt/user-data/outputs."],
+    virtual_path: Annotated[str, "File path in /mnt/user-data/workspace, /mnt/user-data/outputs, or an explicitly selected /mnt/user-data/jupyter file."],
     display_name: Annotated[str | None, "Optional durable file name."] = None,
 ) -> dict:
     """Save a file generated in this conversation into a durable project.
 
     Use only when the user asks to save, keep, persist, archive, or store a
-    result in a project. The source must be in the current thread workspace or
-    outputs directory; host paths and other users' files are never accepted.
+    result in a project. The source may be in the current thread workspace or
+    outputs directory, or be one explicitly selected file from the current
+    user's Jupyter space. Host paths and other users' files are never accepted.
     """
+    matrixmed = await _matrixmed_project_sandbox(runtime)
+    if matrixmed is not None:
+        if not _matrixmed_project_matches(matrixmed, project_ref):
+            return {"success": False, "message": "The requested project is outside the current authorized Sandbox context."}
+        name = _safe_name(display_name or Path(virtual_path).name)
+        try:
+            record = await asyncio.to_thread(
+                matrixmed.save_project_file,
+                virtual_path,
+                display_name=name,
+                kind=_matrixmed_kind(name),
+            )
+        except (PermissionError, ValueError) as exc:
+            return {"success": False, "message": str(exc)}
+        return {
+            "success": True,
+            "project_id": matrixmed.project_key,
+            "project_name": matrixmed.project_key,
+            "file_id": record.get("file_id"),
+            "version": record.get("version"),
+            "name": record.get("display_name", name),
+            "size": record.get("size_bytes"),
+            "message": "File saved as an immutable version in the current authorized project.",
+        }
+
     user_id = resolve_runtime_user_id(runtime)
     project = await _resolve_project(project_ref, user_id)
     if project is None:

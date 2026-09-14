@@ -45,6 +45,7 @@ from deerflow.authz.principal import build_principal_from_context
 from deerflow.authz.provider import AuthorizationProvider, AuthzDecision, AuthzRequest, Principal
 from deerflow.authz.runtime import resolve_authorization_provider
 from deerflow.config.authorization_config import AuthorizationConfig
+from deerflow.sandbox.runtime_identity import sandbox_identity_scope
 
 if TYPE_CHECKING:
     from app.gateway.auth.models import User
@@ -476,12 +477,13 @@ async def try_acquire_sandbox_for_request(
     from deerflow.sandbox.lease import get_sandbox_lease_manager
 
     owner_id = f"{owner_prefix}:{uuid.uuid4()}"
-    sandbox_id = await get_sandbox_lease_manager(sandbox_provider).acquire_async(
-        owner_id,
-        thread_id,
-        user_id=user_id,
-        release_on_last=release_on_last,
-    )
+    with sandbox_identity_scope(_route_authz_context(user, is_internal=_is_internal_caller(request, user)) if user is not None else None):
+        sandbox_id = await get_sandbox_lease_manager(sandbox_provider).acquire_async(
+            owner_id,
+            thread_id,
+            user_id=user_id,
+            release_on_last=release_on_last,
+        )
     return SandboxRequestLease(
         sandbox=sandbox_provider.get(sandbox_id),
         sandbox_id=sandbox_id,

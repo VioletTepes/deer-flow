@@ -615,6 +615,33 @@ Downloads are restricted to `/mnt/user-data` and all file paths reject
 traversal. Multi-process discovery and ownership coordination are not yet
 implemented, so `replicas` is a per-Gateway-process soft cap.
 
+**MatrixMed shared Sandbox API** (uses one remote execution service rather
+than a container or Python kernel for every DeerFlow user):
+
+```yaml
+sandbox:
+   use: deerflow.community.matrixmed:MatrixMedSandboxProvider
+   matrixmed_api_url: http://127.0.0.1:8092
+   matrixmed_provider_shared_secret: $MATRIXMED_SANDBOX_PROVIDER_SHARED_SECRET
+   # A trusted DeerFlow request context must provide matrixmed_project_key.
+   # The development fallback below must be disabled in production.
+   matrixmed_default_project_key: deerflow
+   matrixmed_allow_default_project: true
+   matrixmed_request_timeout: 130
+```
+
+The provider obtains a short-lived context from Sandbox API using the OIDC
+`oauth_id` of the authenticated DeerFlow user and the trusted `matrixmed_project_key`
+carried by the server-side request context. Sandbox API verifies that subject
+with MatrixMed Identity, including the single `sandbox.access` permission, and
+maps it to the user's JuiceFS workspace. Each Python or Bash tool call then runs
+in a short-lived NsJail process; the provider does not start a per-user server,
+container, or notebook kernel. DeerFlow virtual paths map to
+`/mnt/user-data/workspace`, `/mnt/user-data/uploads` (stored under the thread
+workspace), `/mnt/user-data/outputs`, and the read-only
+`/mnt/user-data/query-results`. The endpoint and shared secret must be supplied
+only in the DeerFlow server environment, never in browser configuration.
+
 Choose between local execution or Docker-based isolation:
 
 **Option 1: Local Sandbox** (default, simpler setup):

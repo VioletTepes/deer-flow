@@ -1522,6 +1522,21 @@ sandbox:
 #   # environment:                    # create-time and per-command defaults
 #   #   PYTHONUNBUFFERED: "1"
 
+# Option 7: MatrixMed shared Sandbox API
+# A single remote Sandbox API launches short-lived NsJail processes for every
+# command. It does not create per-user containers or notebook kernels. The
+# provider uses the authenticated user's OIDC subject and MatrixMed Identity
+# verifies sandbox.access before issuing a context token.
+# sandbox:
+#   use: deerflow.community.matrixmed:MatrixMedSandboxProvider
+#   matrixmed_api_url: http://127.0.0.1:8092
+#   matrixmed_provider_shared_secret: $MATRIXMED_SANDBOX_PROVIDER_SHARED_SECRET
+#   # A trusted DeerFlow request context must provide matrixmed_project_key.
+#   # The following development fallback is forbidden in production.
+#   matrixmed_default_project_key: deerflow
+#   matrixmed_allow_default_project: true
+#   matrixmed_request_timeout: 130
+
 # ============================================================================
 # Subagents Configuration
 # ============================================================================

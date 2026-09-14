@@ -232,9 +232,29 @@ export interface Translations {
     chats: string;
     demoChats: string;
     agents: string;
+    projects: string;
     scheduledTasks: string;
     agentsDisabledTooltip: string;
     channels: string;
+  };
+
+  projects: {
+    title: string;
+    newProject: string;
+    projectName: string;
+    create: string;
+    cancel: string;
+    upload: string;
+    emptyProjects: string;
+    emptyFiles: string;
+    selectProject: string;
+    deleteProject: string;
+    deleteProjectConfirm: string;
+    deleteFile: string;
+    downloadFile: string;
+    created: string;
+    uploaded: string;
+    deleted: string;
   };
 
   // Thread-scoped MCP background tasks
