@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
 import uuid
 from types import SimpleNamespace
 
+import httpx
+
+from deerflow.authz.provider import AuthzRequest, Principal
+from deerflow.community.matrixmed.agentgateway_model import _MatrixMedContextAuth
+from deerflow.community.matrixmed.authorization import MatrixMedAuthorizationProvider
+from deerflow.community.matrixmed.mcp import _MatrixMedMcpContextInterceptor
 from deerflow.community.matrixmed.provider import MatrixMedSandboxProvider
 from deerflow.sandbox.runtime_identity import sandbox_identity_scope
 
@@ -51,6 +58,96 @@ def test_acquire_uses_oidc_subject_and_signed_context(monkeypatch):
     assert headers["X-Sandbox-Provider-Signature"] == hmac.new(b"provider-secret", canonical, hashlib.sha256).hexdigest()
 
 
+def test_agentgateway_authorization_provider_filters_models_by_policy(monkeypatch):
+    provider = MatrixMedAuthorizationProvider(
+        policy_api_url="http://policy.internal",
+        context_shared_secret="policy-secret",
+    )
+    calls: list[tuple[str, str, dict]] = []
+
+    def post(path, *, subject, payload):
+        calls.append((path, subject, payload))
+        if path.endswith("filter"):
+            return {"allowed_resource_ids": ["deepseek-flash"]}
+        return {"allow": payload["resource_id"] == "deepseek-flash", "reason": "allowed"}
+
+    monkeypatch.setattr(provider, "_post", post)
+    principal = Principal(oauth_id="keycloak-subject")
+    assert provider.filter_resources(principal, "model", ["deepseek-flash", "other"]) == ["deepseek-flash"]
+    assert provider.authorize(AuthzRequest(principal=principal, resource="model", action="use", target="deepseek-flash")).allow
+    assert not provider.authorize(AuthzRequest(principal=principal, resource="model", action="use", target="other")).allow
+    assert calls[0][1] == "keycloak-subject"
+
+
+def test_agentgateway_transport_signs_current_oidc_subject(monkeypatch):
+    import deerflow.community.matrixmed.agentgateway_model as module
+
+    monkeypatch.setattr(module, "get_current_user", lambda: SimpleNamespace(oauth_id="keycloak-subject"))
+    auth = _MatrixMedContextAuth("policy-secret", 240)
+    request = httpx.Request(
+        "POST",
+        "http://policy.internal/v1/chat/completions",
+        headers={"Authorization": "Bearer placeholder"},
+    )
+    sent = next(auth.auth_flow(request))
+    assert "Authorization" not in sent.headers
+    assert sent.headers["X-MatrixMed-Subject"] == "keycloak-subject"
+    canonical = json.dumps(
+        {
+            "expires_at": sent.headers["X-MatrixMed-Expires-At"],
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "request_id": sent.headers["X-MatrixMed-Request-Id"],
+            "subject": "keycloak-subject",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    assert sent.headers["X-MatrixMed-Context-Signature"] == hmac.new(b"policy-secret", canonical, hashlib.sha256).hexdigest()
+
+
+def test_agentgateway_mcp_interceptor_signs_each_tool_call(monkeypatch):
+    import deerflow.community.matrixmed.mcp as module
+
+    monkeypatch.setattr(module, "get_current_user", lambda: SimpleNamespace(oauth_id="keycloak-subject"))
+
+    class Request:
+        server_name = "agentgateway-mcp"
+        headers = {"X-MatrixMed-MCP-Discovery": "discovery-secret"}
+
+        def override(self, *, headers):
+            return SimpleNamespace(server_name=self.server_name, headers=headers)
+
+    captured = []
+
+    async def handler(request):
+        captured.append(request)
+        return "ok"
+
+    interceptor = _MatrixMedMcpContextInterceptor(
+        secret="policy-secret",
+        server_names={"agentgateway-mcp"},
+        ttl_seconds=240,
+        path="/mcp",
+    )
+    assert asyncio.run(interceptor(Request(), handler)) == "ok"
+    headers = captured[0].headers
+    assert headers["X-MatrixMed-MCP-Discovery"] == "discovery-secret"
+    assert headers["X-MatrixMed-Subject"] == "keycloak-subject"
+    canonical = json.dumps(
+        {
+            "expires_at": headers["X-MatrixMed-Expires-At"],
+            "method": "POST",
+            "path": "/mcp",
+            "request_id": headers["X-MatrixMed-Request-Id"],
+            "subject": "keycloak-subject",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    assert headers["X-MatrixMed-Context-Signature"] == hmac.new(b"policy-secret", canonical, hashlib.sha256).hexdigest()
+
+
 def test_acquire_fails_closed_without_oidc_subject(monkeypatch):
     provider = _provider(monkeypatch)
 
@@ -68,11 +165,14 @@ def test_acquire_uses_trusted_project_context_instead_of_default(monkeypatch):
     monkeypatch.setattr(
         provider,
         "_post_json",
-        lambda path, body, headers: calls.append(body) or {
-            "context_token": "context-token",
-            "context_id": "123e4567-e89b-12d3-a456-426614174000",
-            "expires_at": "2030-01-01T00:00:00+00:00",
-        },
+        lambda path, body, headers: (
+            calls.append(body)
+            or {
+                "context_token": "context-token",
+                "context_id": "123e4567-e89b-12d3-a456-426614174000",
+                "expires_at": "2030-01-01T00:00:00+00:00",
+            }
+        ),
     )
 
     with sandbox_identity_scope({"oauth_id": "keycloak-subject", "matrixmed_project_key": "study-alpha"}):
@@ -219,12 +319,8 @@ def test_project_file_v1_uses_only_the_bound_context(monkeypatch):
     assert sandbox is not None
 
     assert sandbox.list_project_files()[0]["file_id"] == file_id
-    saved = sandbox.save_project_file(
-        "/mnt/user-data/query-results/cohort.csv", display_name="report.csv", kind="report"
-    )
-    jupyter_saved = sandbox.save_project_file(
-        "/mnt/user-data/jupyter/analysis.ipynb", display_name="analysis.ipynb", kind="notebook"
-    )
+    saved = sandbox.save_project_file("/mnt/user-data/query-results/cohort.csv", display_name="report.csv", kind="report")
+    jupyter_saved = sandbox.save_project_file("/mnt/user-data/jupyter/analysis.ipynb", display_name="analysis.ipynb", kind="notebook")
     attached, virtual_path = sandbox.attach_project_file(file_id, version=1)
 
     assert saved["file_id"] == file_id

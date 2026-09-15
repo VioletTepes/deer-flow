@@ -1537,6 +1537,41 @@ sandbox:
 #   matrixmed_allow_default_project: true
 #   matrixmed_request_timeout: 130
 
+# MatrixMed Agentgateway model authorization. The model sends only a short-lived
+# signed OIDC-subject context to the local Policy API. Do not configure an
+# upstream provider key in DeerFlow.
+# - name: deepseek-flash
+#   display_name: DeepSeek Flash
+#   use: deerflow.community.matrixmed:MatrixMedAgentgatewayChatModel
+#   model: deepseek-flash
+#   # DeerFlow on 157 reaches the Policy API over the cluster network.
+#   base_url: http://10.0.14.158:8093/v1
+#   matrixmed_context_shared_secret: $MATRIXMED_AGENTGATEWAY_CONTEXT_SECRET
+#   matrixmed_context_ttl_seconds: 240
+#
+# authorization:
+#   enabled: true
+#   fail_closed: true
+#   default_role: user
+#   provider:
+#     use: deerflow.community.matrixmed:MatrixMedAuthorizationProvider
+#     config:
+#       policy_api_url: http://10.0.14.158:8093
+#       context_shared_secret: $MATRIXMED_AGENTGATEWAY_CONTEXT_SECRET
+
+# Agentgateway MCP transport.  Add this custom interceptor in DeerFlow's
+# extensions_config.json and configure its process environment:
+#   "mcpInterceptors": [
+#     "deerflow.community.matrixmed:build_matrixmed_agentgateway_mcp_interceptor"
+#   ]
+#   MATRIXMED_AGENTGATEWAY_MCP_SERVERS=agentgateway-mcp
+#   MATRIXMED_AGENTGATEWAY_CONTEXT_SECRET=<same HMAC secret as Policy API>
+# The Agentgateway connection itself uses type "http", URL
+# http://10.0.14.159/agentgateway/mcp, and static header
+# X-MatrixMed-MCP-Discovery: $MATRIXMED_AGENTGATEWAY_MCP_DISCOVERY_SECRET.
+# That static secret permits DeerFlow's internal schema discovery only; this
+# interceptor signs each actual tools/call with the authenticated user subject.
+
 # ============================================================================
 # Subagents Configuration
 # ============================================================================

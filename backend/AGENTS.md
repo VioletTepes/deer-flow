@@ -97,6 +97,11 @@ an Agent argument. It creates a short-lived remote context for each DeerFlow thr
 the Sandbox API's logical paths, and uses that context for immutable project-file operations. It never starts or
 uses a Jupyter kernel.
 
+**MatrixMed Agentgateway** code shares that directory. `MatrixMedAuthorizationProvider` filters only models and
+MCP resources through the Identity-backed Policy API, while `MatrixMedAgentgatewayChatModel` signs each OpenAI
+request with the current OIDC subject. Neither class may contain an upstream LLM key, persist a Keycloak user
+token, or expand its scope into ordinary DeerFlow route/sandbox permissions.
+
 When making code changes, you MUST update the relevant documentation:
 - Update `README.md` for user-facing changes (features, setup, usage instructions)
 - Update `AGENTS.md` for development changes (architecture, commands, workflows, internal systems). `CLAUDE.md` imports it via `@AGENTS.md`, so editing `AGENTS.md` updates both.
