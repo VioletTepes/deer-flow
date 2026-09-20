@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.gateway.auth.config import AuthConfig, set_auth_config
-from deerflow.config.auth_config import AuthAppConfig, LocalAuthConfig
+from deerflow.config.auth_config import AuthAppConfig, LocalAuthConfig, OIDCAuthConfig, OIDCProviderConfig
 
 _TEST_SECRET = "test-secret-key-for-registration-gate-tests-only"
 
@@ -61,12 +61,24 @@ def client(monkeypatch):
     # a real value for the app lifespan.
     baseline = AppConfig.from_file(str(Path(__file__).resolve().parents[2] / "config.example.yaml"))
 
-    def _make(*, allow_registration: bool, local_login_enabled: bool = True) -> TestClient:
+    def _make(*, allow_registration: bool, local_login_enabled: bool = True, sso_enabled: bool = False) -> TestClient:
         set_auth_config(AuthConfig(jwt_secret=_TEST_SECRET))
         patched = baseline.model_copy(deep=True)
+        oidc = OIDCAuthConfig()
+        if sso_enabled:
+            oidc = OIDCAuthConfig(
+                enabled=True,
+                providers={
+                    "test": OIDCProviderConfig(
+                        display_name="Test SSO",
+                        issuer="https://issuer.example.com",
+                        client_id="test-client",
+                    )
+                },
+            )
         patched.auth = AuthAppConfig(
             local=LocalAuthConfig(enabled=local_login_enabled, allow_registration=allow_registration),
-            oidc=baseline.auth.oidc,
+            oidc=oidc,
         )
         monkeypatch.setattr("deerflow.config.app_config.get_app_config", lambda: patched)
         # setup-status memoizes per client IP; drop it so each direction is read fresh.
@@ -143,6 +155,23 @@ def test_local_login_is_rejected_when_disabled(client):
     response = client(allow_registration=False, local_login_enabled=False).post(
         "/api/v1/auth/login/local",
         data={"username": _unique_email("local-login-disabled"), "password": "Tr0ub4dor3a!"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "local_login_disabled"
+
+
+def test_sso_only_deployment_skips_local_first_admin_setup(client):
+    response = client(allow_registration=False, local_login_enabled=False, sso_enabled=True).get(
+        "/api/v1/auth/setup-status",
+    )
+    assert response.status_code == 200
+    assert response.json() == {"needs_setup": False, "registration_enabled": False}
+
+
+def test_sso_only_deployment_rejects_local_first_admin_setup(client):
+    response = client(allow_registration=False, local_login_enabled=False, sso_enabled=True).post(
+        "/api/v1/auth/initialize",
+        json={"email": _unique_email("sso-only-init"), "password": "Tr0ub4dor3a!"},
     )
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "local_login_disabled"

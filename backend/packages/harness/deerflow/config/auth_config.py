@@ -78,11 +78,7 @@ class LocalAuthConfig(BaseModel):
 
     enabled: bool = Field(
         default=True,
-        description=(
-            "Allow the built-in email/password login endpoint. Set to false for "
-            "an SSO-only deployment; existing local accounts remain stored but "
-            "cannot authenticate through POST /api/v1/auth/login/local."
-        ),
+        description=("Allow the built-in email/password login endpoint. Set to false for an SSO-only deployment; existing local accounts remain stored but cannot authenticate through POST /api/v1/auth/login/local."),
     )
     allow_registration: bool = Field(
         default=True,

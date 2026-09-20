@@ -2786,6 +2786,9 @@ authorization:
 #   local:
 #     # Set false for an SSO-only deployment. This closes POST
 #     # /api/v1/auth/login/local as well as hiding its form.
+#     # When a configured OIDC provider is enabled, the first-boot local
+#     # administrator setup is also skipped; designate SSO administrators with
+#     # the provider's admin_emails list below instead.
 #     enabled: false
 #     allow_registration: false
 #     # Login throttling per client IP (in-process, per worker). Raise

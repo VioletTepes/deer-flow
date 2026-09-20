@@ -478,6 +478,22 @@ def _local_login_enabled() -> bool:
         return True
 
 
+def _sso_only_deployment() -> bool:
+    """Whether SSO is the only available interactive authentication path.
+
+    A local first-admin account is meaningful only when it can subsequently
+    authenticate. In an SSO-only deployment, treating an empty local account
+    table as an uninitialised system would strand every visitor on /setup.
+    """
+    from deerflow.config.app_config import get_app_config
+
+    try:
+        auth = get_app_config().auth
+    except FileNotFoundError:
+        return False
+    return not auth.local.enabled and auth.oidc.enabled and bool(auth.oidc.providers)
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: Request, response: Response, body: RegisterRequest):
     """Register a new user account (always 'user' role).
@@ -766,6 +782,8 @@ async def setup_status(request: Request):
                         del _SETUP_STATUS_CACHE[k]
 
             async def _compute_setup_status() -> dict:
+                if await asyncio.to_thread(_sso_only_deployment):
+                    return {"needs_setup": False, "registration_enabled": False}
                 admin_count = await get_local_provider().count_admin_users()
                 return {"needs_setup": admin_count == 0, "registration_enabled": _local_registration_enabled()}
 
@@ -807,6 +825,15 @@ async def initialize_admin(request: Request, response: Response, body: Initializ
     On success, the admin account is created with ``needs_setup=False`` and
     the session cookie is set.
     """
+    if await asyncio.to_thread(_sso_only_deployment):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthErrorResponse(
+                code=AuthErrorCode.LOCAL_LOGIN_DISABLED,
+                message="Local administrator initialization is disabled on this SSO-only deployment",
+            ).model_dump(),
+        )
+
     admin_count = await get_local_provider().count_admin_users()
     if admin_count > 0:
         raise HTTPException(
