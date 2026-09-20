@@ -236,6 +236,7 @@ def test_command_path_translation_does_not_rewrite_prefix_lookalikes(monkeypatch
     assert sandbox is not None
     assert sandbox._translate_command("echo /mnt/user-data/workspace-copy") == "echo /mnt/user-data/workspace-copy"
     assert sandbox._translate_command("echo done > /mnt/user-data/outputs/report.txt") == "echo done > /output/report.txt"
+    assert sandbox._translate_command("cat /mnt/user-data/uploads/input.csv") == "cat /uploads/input.csv"
 
 
 def test_file_operations_use_logical_file_api(monkeypatch):
@@ -255,11 +256,13 @@ def test_file_operations_use_logical_file_api(monkeypatch):
     sandbox = provider.get(sandbox_id)
     assert sandbox is not None
     sandbox.write_file("/mnt/user-data/workspace/note.txt", "stored")
+    sandbox.write_file("/mnt/user-data/uploads/input.csv", "id\n1\n")
     assert sandbox.read_file("/mnt/user-data/workspace/note.txt") == "stored"
     assert sandbox.download_file("/mnt/user-data/workspace/note.txt") == b"bytes"
     assert calls[0]["endpoint"] == "files"
     assert calls[0]["path"] == "/workspace/note.txt"
-    assert calls[1]["endpoint"] == "files:read"
+    assert calls[1]["path"] == "/uploads/input.csv"
+    assert calls[2]["endpoint"] == "files:read"
 
 
 def test_search_and_output_paths_use_logical_file_api(monkeypatch):

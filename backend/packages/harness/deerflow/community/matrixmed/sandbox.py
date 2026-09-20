@@ -81,7 +81,7 @@ class MatrixMedSandbox(Sandbox):
         virtual = VIRTUAL_PATH_PREFIX.rstrip("/")
         mappings = {
             f"{virtual}/workspace": "/workspace",
-            f"{virtual}/uploads": "/workspace/uploads",
+            f"{virtual}/uploads": "/uploads",
             f"{virtual}/outputs": "/outputs",
             # File APIs use Sandbox API logical paths; `/inputs/...` exists
             # only inside an NsJail execution mount.
@@ -98,6 +98,7 @@ class MatrixMedSandbox(Sandbox):
     @staticmethod
     def _virtualize(path: str) -> str:
         mappings = {
+            "/uploads": f"{VIRTUAL_PATH_PREFIX.rstrip('/')}/uploads",
             "/workspace": f"{VIRTUAL_PATH_PREFIX.rstrip('/')}/workspace",
             "/outputs": f"{VIRTUAL_PATH_PREFIX.rstrip('/')}/outputs",
             "/query-results": f"{VIRTUAL_PATH_PREFIX.rstrip('/')}/query-results",
@@ -138,7 +139,7 @@ class MatrixMedSandbox(Sandbox):
         virtual = VIRTUAL_PATH_PREFIX.rstrip("/")
         mappings = (
             (f"{virtual}/query-results", "/inputs/query-results"),
-            (f"{virtual}/uploads", "/workspace/uploads"),
+            (f"{virtual}/uploads", "/uploads"),
             (f"{virtual}/workspace", "/workspace"),
             (f"{virtual}/outputs", "/output"),
         )
