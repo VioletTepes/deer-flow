@@ -37,6 +37,7 @@ export default function LoginPage() {
   const [ssoProviders, setSsoProviders] = useState<
     { id: string; display_name: string; type: string }[]
   >([]);
+  const [localLoginEnabled, setLocalLoginEnabled] = useState(true);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(
     null,
   );
@@ -117,7 +118,8 @@ export default function LoginPage() {
   }, [setupStatusAttempt]);
 
   // SSO providers are static for the page lifetime and should not be coupled to
-  // setup-status retries.
+  // setup-status retries. A deployment with one SSO provider and local login
+  // disabled is intentionally an SSO-only entry point.
   useEffect(() => {
     let cancelled = false;
 
@@ -126,9 +128,24 @@ export default function LoginPage() {
       .then(
         (data: {
           providers: { id: string; display_name: string; type: string }[];
+          local_enabled?: boolean;
         }) => {
           if (!cancelled) {
-            setSsoProviders(data.providers ?? []);
+            const providers = data.providers ?? [];
+            const localEnabled = data.local_enabled ?? true;
+            const [defaultProvider] = providers;
+            setSsoProviders(providers);
+            setLocalLoginEnabled(localEnabled);
+            if (
+              !localEnabled &&
+              defaultProvider &&
+              providers.length === 1 &&
+              !errorParam
+            ) {
+              window.location.replace(
+                `/api/v1/auth/oauth/${defaultProvider.id}?next=${encodeURIComponent(redirectPath)}&remember_me=${String(rememberMe)}`,
+              );
+            }
           }
         },
       )
@@ -139,7 +156,7 @@ export default function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [errorParam, redirectPath, rememberMe]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -262,54 +279,56 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-2">
-          <div className="flex flex-col space-y-1">
-            <label htmlFor="email" className="text-sm font-medium">
-              {t.login.email}
-            </label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t.login.emailPlaceholder}
-              required
+        {localLoginEnabled && (
+          <form onSubmit={handleSubmit} className="space-y-2">
+            <div className="flex flex-col space-y-1">
+              <label htmlFor="email" className="text-sm font-medium">
+                {t.login.email}
+              </label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t.login.emailPlaceholder}
+                required
+              />
+            </div>
+            <div className="flex flex-col space-y-1">
+              <label htmlFor="password" className="text-sm font-medium">
+                {t.login.password}
+              </label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t.login.passwordPlaceholder}
+                required
+                minLength={isLogin ? 6 : 8}
+              />
+            </div>
+
+            <RememberSessionOption
+              checked={rememberMe}
+              onCheckedChange={setRememberMe}
             />
-          </div>
-          <div className="flex flex-col space-y-1">
-            <label htmlFor="password" className="text-sm font-medium">
-              {t.login.password}
-            </label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t.login.passwordPlaceholder}
-              required
-              minLength={isLogin ? 6 : 8}
-            />
-          </div>
 
-          <RememberSessionOption
-            checked={rememberMe}
-            onCheckedChange={setRememberMe}
-          />
+            {error && <p className="text-sm text-red-500">{error}</p>}
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
-
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading
-              ? t.login.pleaseWait
-              : isLogin
-                ? t.login.signIn
-                : t.login.createAccount}
-          </Button>
-        </form>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading
+                ? t.login.pleaseWait
+                : isLogin
+                  ? t.login.signIn
+                  : t.login.createAccount}
+            </Button>
+          </form>
+        )}
 
         {ssoProviders.length > 0 && (
           <div className="space-y-2">
-            {isLogin && (
+            {isLogin && localLoginEnabled && (
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />

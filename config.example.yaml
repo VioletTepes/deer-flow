@@ -2753,6 +2753,8 @@ authorization:
 # ============================================================================
 # Enable SSO login via any OIDC-compatible provider (Keycloak, Google, Azure AD, Okta, etc.).
 # When enabled, the login page will show SSO buttons alongside the standard email/password form.
+# Set auth.local.enabled: false to make the page automatically enter a single
+# configured SSO provider and reject direct local-login API calls.
 #
 # Provider configuration:
 #   - issuer:      The OIDC issuer URL (e.g. https://keycloak.example.com/realms/deerflow)
@@ -2782,6 +2784,9 @@ authorization:
 
 # auth:
 #   local:
+#     # Set false for an SSO-only deployment. This closes POST
+#     # /api/v1/auth/login/local as well as hiding its form.
+#     enabled: false
 #     allow_registration: false
 #     # Login throttling per client IP (in-process, per worker). Raise
 #     # max_login_attempts when many users share one egress IP (corporate

@@ -407,6 +407,15 @@ async def login_local(
     remember_me: bool = Form(default=True),
 ):
     """Local email/password login."""
+    if not _local_login_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthErrorResponse(
+                code=AuthErrorCode.LOCAL_LOGIN_DISABLED,
+                message="Local email/password login is disabled on this deployment",
+            ).model_dump(),
+        )
+
     client_ip = _get_client_ip(request)
     await _check_rate_limit(client_ip)
 
@@ -450,6 +459,21 @@ def _local_registration_enabled() -> bool:
 
     try:
         return get_app_config().auth.local.allow_registration
+    except FileNotFoundError:
+        return True
+
+
+def _local_login_enabled() -> bool:
+    """Whether the built-in email/password login endpoint may authenticate users.
+
+    SSO-only deployments need this server-side gate in addition to hiding the
+    form in the frontend: otherwise a caller could still submit credentials
+    directly to ``POST /api/v1/auth/login/local``.
+    """
+    from deerflow.config.app_config import get_app_config
+
+    try:
+        return get_app_config().auth.local.enabled
     except FileNotFoundError:
         return True
 
@@ -878,7 +902,7 @@ async def list_auth_providers():
     oidc_config = app_config.auth.oidc
 
     if not oidc_config.enabled:
-        return {"providers": []}
+        return {"providers": [], "local_enabled": app_config.auth.local.enabled}
 
     providers = []
     for provider_id, provider_cfg in oidc_config.providers.items():
@@ -889,7 +913,7 @@ async def list_auth_providers():
                 "type": "oidc",
             }
         )
-    return {"providers": providers}
+    return {"providers": providers, "local_enabled": app_config.auth.local.enabled}
 
 
 @router.get("/oauth/{provider}")

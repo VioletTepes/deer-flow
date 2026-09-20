@@ -61,10 +61,13 @@ def client(monkeypatch):
     # a real value for the app lifespan.
     baseline = AppConfig.from_file(str(Path(__file__).resolve().parents[2] / "config.example.yaml"))
 
-    def _make(*, allow_registration: bool) -> TestClient:
+    def _make(*, allow_registration: bool, local_login_enabled: bool = True) -> TestClient:
         set_auth_config(AuthConfig(jwt_secret=_TEST_SECRET))
         patched = baseline.model_copy(deep=True)
-        patched.auth = AuthAppConfig(local=LocalAuthConfig(allow_registration=allow_registration), oidc=baseline.auth.oidc)
+        patched.auth = AuthAppConfig(
+            local=LocalAuthConfig(enabled=local_login_enabled, allow_registration=allow_registration),
+            oidc=baseline.auth.oidc,
+        )
         monkeypatch.setattr("deerflow.config.app_config.get_app_config", lambda: patched)
         # setup-status memoizes per client IP; drop it so each direction is read fresh.
         from app.gateway.routers import auth as auth_router
@@ -128,6 +131,21 @@ def test_registration_defaults_to_allowed():
     """
     assert LocalAuthConfig().allow_registration is True
     assert AuthAppConfig().local.allow_registration is True
+
+
+def test_local_login_defaults_to_enabled():
+    assert LocalAuthConfig().enabled is True
+    assert AuthAppConfig().local.enabled is True
+
+
+def test_local_login_is_rejected_when_disabled(client):
+    """SSO-only mode closes the server-side password endpoint, not just its UI."""
+    response = client(allow_registration=False, local_login_enabled=False).post(
+        "/api/v1/auth/login/local",
+        data={"username": _unique_email("local-login-disabled"), "password": "Tr0ub4dor3a!"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "local_login_disabled"
 
 
 def test_gate_falls_back_to_open_when_config_is_absent(monkeypatch):
