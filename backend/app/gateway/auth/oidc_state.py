@@ -22,6 +22,11 @@ OIDC_STATE_MAX_AGE = 300  # 5 minutes
 OIDC_STATE_BYTES = 32
 OIDC_NONCE_BYTES = 16
 OIDC_CODE_VERIFIER_BYTES = 32
+# The browser receives this cookie from ``/api/v1/auth/oauth/{provider}`` and
+# returns it to ``/api/v1/auth/callback/{provider}``.  A cookie path must be a
+# prefix of the URL that sets it, so it cannot be scoped to the sibling
+# ``callback`` path alone.
+OIDC_STATE_COOKIE_PATH = "/api/v1/auth/"
 
 
 class OIDCStatePayload(BaseModel):
@@ -99,7 +104,7 @@ def set_state_cookie(response: Response, request: Request, payload: OIDCStatePay
         secure=is_https,
         samesite="lax",
         max_age=OIDC_STATE_MAX_AGE,
-        path=f"/api/v1/auth/callback/{payload.provider}",
+        path=OIDC_STATE_COOKIE_PATH,
     )
 
 
@@ -118,5 +123,5 @@ def delete_state_cookie(response: Response, request: Request, provider: str) -> 
         key=_cookie_name(provider),
         secure=is_https,
         samesite="lax",
-        path=f"/api/v1/auth/callback/{provider}",
+        path=OIDC_STATE_COOKIE_PATH,
     )

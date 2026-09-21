@@ -1,9 +1,10 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Request, Response
 
 from app.gateway.auth.models import User
+from app.gateway.auth.oidc_state import OIDCStatePayload, OIDC_STATE_COOKIE_PATH, set_state_cookie
 from app.gateway.auth.oidc import OIDCError, OIDCIdentity, OIDCMetadata, OIDCService, OIDCValidationError
 from app.gateway.auth.user_provisioning import get_or_provision_oidc_user
 from deerflow.config.auth_config import OIDCProviderConfig
@@ -29,6 +30,31 @@ def _identity(**overrides):
     }
     values.update(overrides)
     return OIDCIdentity(**values)
+
+
+def test_oidc_state_cookie_uses_shared_auth_path(monkeypatch):
+    """Browsers accept the cookie set by oauth and return it to callback."""
+    monkeypatch.setattr("app.gateway.auth.oidc_state._sign_state_payload", lambda payload: "signed-state")
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/api/v1/auth/oauth/keycloak",
+            "headers": [],
+        }
+    )
+    response = Response()
+
+    set_state_cookie(
+        response,
+        request,
+        OIDCStatePayload(provider="keycloak", state="state-value"),
+    )
+
+    cookie = response.headers["set-cookie"]
+    assert f"Path={OIDC_STATE_COOKIE_PATH}" in cookie
+    assert "/callback/keycloak" not in cookie
 
 
 @pytest.mark.asyncio
