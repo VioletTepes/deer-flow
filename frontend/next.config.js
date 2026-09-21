@@ -13,12 +13,26 @@ function getInternalServiceURL(envKey, fallbackURL) {
     ? configured.replace(/\/+$/, "")
     : fallbackURL;
 }
+
+function getPublicBasePath() {
+  const configured = process.env.DEER_FLOW_PUBLIC_BASE_PATH?.trim();
+  if (!configured) {
+    return undefined;
+  }
+  if (!configured.startsWith("/") || configured === "/") {
+    throw new Error(
+      "DEER_FLOW_PUBLIC_BASE_PATH must be a non-root path beginning with '/'.",
+    );
+  }
+  return configured.replace(/\/+$/, "");
+}
 import nextra from "nextra";
 
 const withNextra = nextra({});
 
 /** @type {import("next").NextConfig} */
 const config = {
+  basePath: getPublicBasePath(),
   output:
     process.env.NEXT_CONFIG_BUILD_OUTPUT === "standalone"
       ? "standalone"
