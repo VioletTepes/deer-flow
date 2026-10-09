@@ -92,10 +92,12 @@ storage when available and `Sandbox.update_file`/`download_file` for remote
 sandboxes. Project roots are not bind-mounted into Docker or Kubernetes pods.
 
 **MatrixMed remote Sandbox** lives in `packages/harness/deerflow/community/matrixmed/`. It receives only the
-request-scoped authenticated OIDC subject and a server-owned `matrixmed_project_key`; neither may originate from
-an Agent argument. It creates a short-lived remote context for each DeerFlow thread, translates virtual paths to
-the Sandbox API's logical paths, and uses that context for immutable project-file operations. It never starts or
-uses a Jupyter kernel.
+request-scoped authenticated OIDC subject and the selected `matrixmed_project_key`; neither may originate from
+an Agent tool argument. The business entry selects `project-{project UUID without hyphens}` in run context;
+the Sandbox API, not the selected key itself, authorizes current project membership on bind and every use.
+The provider isolates cached contexts by user/project/thread. Shared query results use the ordinary read/list
+tools under `/mnt/user-data/query-results` and a readonly execution mount; writes go to personal Workspace.
+Legacy immutable project-file operations are not the shared-result path. It never starts a Jupyter kernel.
 
 **MatrixMed Agentgateway** code shares that directory. `MatrixMedAuthorizationProvider` filters only models and
 MCP resources through the Identity-backed Policy API, while `MatrixMedAgentgatewayChatModel` signs each OpenAI

@@ -8,6 +8,7 @@ import uuid
 from types import SimpleNamespace
 
 import httpx
+import pytest
 
 from deerflow.authz.provider import AuthzRequest, Principal
 from deerflow.community.matrixmed.agentgateway_model import _MatrixMedContextAuth
@@ -179,6 +180,53 @@ def test_acquire_uses_trusted_project_context_instead_of_default(monkeypatch):
         provider.acquire("deerflow-thread", user_id="deerflow-user")
 
     assert calls[0]["project_key"] == "study-alpha"
+
+
+@pytest.mark.parametrize("operation", ["text", "binary"])
+def test_shared_result_write_is_rejected_before_remote_request(monkeypatch, operation):
+    provider = _provider(monkeypatch)
+    monkeypatch.setattr(
+        provider,
+        "_post_json",
+        lambda path, body, headers: {
+            "context_token": "context-token",
+            "context_id": str(uuid.uuid4()),
+            "expires_at": "2030-01-01T00:00:00+00:00",
+        },
+    )
+    calls = []
+    monkeypatch.setattr(provider, "file_json", lambda *args, **kwargs: calls.append(kwargs))
+    with sandbox_identity_scope({"oauth_id": "alice", "matrixmed_project_key": "project-" + uuid.uuid4().hex}):
+        sandbox = provider.get(provider.acquire("thread", user_id="alice-local"))
+    with pytest.raises(PermissionError, match="read-only"):
+        if operation == "text":
+            sandbox.write_file("/mnt/user-data/query-results/export-a/result.csv", "changed")
+        else:
+            sandbox.update_file("/mnt/user-data/query-results/export-a/result.csv", b"changed")
+    assert not calls
+
+
+def test_project_switch_uses_distinct_context_and_shared_result_virtual_path(monkeypatch):
+    provider = _provider(monkeypatch)
+    requests = []
+
+    def post(path, body, headers):
+        requests.append(body)
+        return {"context_token": body["project_key"], "context_id": str(uuid.uuid4()), "expires_at": "2030-01-01T00:00:00+00:00"}
+
+    monkeypatch.setattr(provider, "_post_json", post)
+    keys = ["project-" + uuid.uuid4().hex for _ in range(2)]
+    sandboxes = []
+    for key in keys:
+        with sandbox_identity_scope({"oauth_id": "alice", "matrixmed_project_key": key}):
+            sandboxes.append(provider.get(provider.acquire("same-thread", user_id="alice-local")))
+    assert sandboxes[0].id != sandboxes[1].id
+    assert [body["project_key"] for body in requests] == keys
+    reads = []
+    monkeypatch.setattr(provider, "file_json", lambda sandbox, **kwargs: reads.append((sandbox.context_token(), kwargs["path"])) or {"content": "value\n1\n"})
+    for sandbox in sandboxes:
+        assert sandbox.read_file("/mnt/user-data/query-results/export-a/result.csv") == "value\n1\n"
+    assert reads == [(key, "/query-results/export-a/result.csv") for key in keys]
 
 
 def test_acquire_rejects_missing_project_in_non_development_mode(monkeypatch):

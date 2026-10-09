@@ -90,7 +90,7 @@ class MatrixMedSandbox(Sandbox):
         for source, target in mappings.items():
             if normalized == source or normalized.startswith(f"{source}/"):
                 resolved = target + normalized[len(source) :]
-                if write and target == "/inputs/query-results":
+                if write and target == "/query-results":
                     raise PermissionError("query-results is read-only")
                 return resolved
         raise PermissionError(f"Access denied: path must be under {virtual}/workspace, {virtual}/uploads, {virtual}/outputs, or {virtual}/query-results")
@@ -247,7 +247,10 @@ class MatrixMedSandbox(Sandbox):
             raise ValueError("max_results must be positive")
         resolved = self._resolve_path(path)
         response = self._provider.file_json(
-            self, method="GET", endpoint="files:glob", path=resolved,
+            self,
+            method="GET",
+            endpoint="files:glob",
+            path=resolved,
             extra_query={"pattern": pattern, "include_dirs": include_dirs, "max_results": max_results},
         )
         values = response.get("paths") or []
@@ -258,10 +261,16 @@ class MatrixMedSandbox(Sandbox):
             raise ValueError("max_results must be positive")
         resolved = self._resolve_path(path)
         response = self._provider.file_json(
-            self, method="GET", endpoint="files:grep", path=resolved,
+            self,
+            method="GET",
+            endpoint="files:grep",
+            path=resolved,
             extra_query={
-                "pattern": pattern, "glob": glob, "literal": literal,
-                "case_sensitive": case_sensitive, "max_results": max_results,
+                "pattern": pattern,
+                "glob": glob,
+                "literal": literal,
+                "case_sensitive": case_sensitive,
+                "max_results": max_results,
             },
         )
         values = response.get("matches") or []
@@ -272,11 +281,7 @@ class MatrixMedSandbox(Sandbox):
                 line=truncate_line(str(item["line"])),
             )
             for item in values
-            if isinstance(item, dict)
-            and isinstance(item.get("path"), str)
-            and isinstance(item.get("line_number"), int)
-            and isinstance(item.get("line"), str)
-            and not should_ignore_path(str(item["path"]))
+            if isinstance(item, dict) and isinstance(item.get("path"), str) and isinstance(item.get("line_number"), int) and isinstance(item.get("line"), str) and not should_ignore_path(str(item["path"]))
         ]
         return matches, bool(response.get("truncated"))
 

@@ -484,7 +484,7 @@ When host Bash is enabled for Local Execution, DeerFlow starts OS detection with
 For Docker development, service startup follows `config.yaml` sandbox mode. In Local/Docker modes, `provisioner` is not started.
 
 See the [Sandbox Configuration Guide](backend/docs/CONFIGURATION.md#sandbox) to configure your preferred mode.
-The MatrixMed provider requires a trusted server-side OIDC subject and project context; it must not accept either value from an Agent tool argument.
+The MatrixMed provider requires an authenticated OIDC subject and a selected project context; neither is an Agent tool argument. For a research project, the business entry sets `config.context.matrixmed_project_key` to `project-{project UUID without hyphens}`. Sandbox API verifies current membership before issuing and whenever using the context. Project results are read at `/mnt/user-data/query-results`; editable files and copied results remain in the user's personal Workspace. Personal chat continues to use the configured development default context.
 
 #### MCP Server
 
