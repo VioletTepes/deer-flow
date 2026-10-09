@@ -13,6 +13,7 @@ from typing import Any
 
 from langchain_core.tools import ToolException
 
+from deerflow.community.matrixmed.correlation import correlation_headers
 from deerflow.mcp.headers import apply_header_overrides
 from deerflow.runtime.user_context import get_current_user
 
@@ -44,6 +45,7 @@ class _MatrixMedMcpContextInterceptor:
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         headers = {
+            **correlation_headers(),
             "X-MatrixMed-Subject": subject,
             "X-MatrixMed-Request-Id": request_id,
             "X-MatrixMed-Expires-At": expires_at,

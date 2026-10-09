@@ -12,8 +12,22 @@ from deerflow.trace_context import get_current_trace_id
 
 DEFAULT_LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEFAULT_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-TRACE_TEXT_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - [trace_id=%(trace_id)s] - %(message)s"
+TRACE_TEXT_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - [trace_id=%(trace_id)s] [skywalking_trace_id=%(skywalking_trace_id)s] - %(message)s"
 _TRACE_FILTER_NAME = "deerflow_trace_context_filter"
+
+
+def skywalking_trace_fields() -> dict[str, Any]:
+    """Optional agent metadata; a request correlation ID is never an OAP trace."""
+    try:
+        from skywalking.agent import agent
+        from skywalking.trace.context import get_context
+
+        snapshot = get_context().capture() if agent.started() else None
+    except (ImportError, AttributeError):
+        snapshot = None
+    if snapshot is None or snapshot.span_id < 0 or not snapshot.trace_id:
+        return {"trace_id": None, "span_id": None, "segment_id": None}
+    return {"trace_id": str(snapshot.trace_id), "span_id": snapshot.span_id, "segment_id": str(snapshot.segment_id)}
 
 
 class TraceContextFilter(logging.Filter):
@@ -23,6 +37,9 @@ class TraceContextFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.trace_id = get_current_trace_id() or "-"
+        record.correlation_id = get_current_trace_id()
+        record.skywalking_trace = skywalking_trace_fields()
+        record.skywalking_trace_id = record.skywalking_trace["trace_id"] or "-"
         return True
 
 
@@ -33,12 +50,13 @@ class JsonTraceFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         if not hasattr(record, "trace_id"):
-            record.trace_id = get_current_trace_id() or "-"
+            TraceContextFilter().filter(record)
         payload: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(record.created, UTC).isoformat(),
             "logger": record.name,
             "level": record.levelname,
-            "trace_id": record.trace_id,
+            **record.skywalking_trace,
+            "correlation_id": record.correlation_id,
             "message": record.getMessage(),
         }
         if record.exc_info:
@@ -89,7 +107,7 @@ def configure_logging(config: object) -> None:
     With logging enhancement disabled this preserves the previous
     ``basicConfig + apply_logging_level`` behavior. With enhancement enabled,
     root handlers gain a trace-context filter and a formatter that includes
-    only the additional ``trace_id`` field.
+    SDK trace fields separately from the request correlation ID.
     """
     _ensure_root_handler()
 
@@ -100,7 +118,8 @@ def configure_logging(config: object) -> None:
     for handler in logging.root.handlers:
         if enhanced:
             _install_trace_filter(handler)
-            handler.setFormatter(_trace_formatter(getattr(enhance, "format", "text")))
+            if not type(handler).__module__.startswith("skywalking."):
+                handler.setFormatter(_trace_formatter(getattr(enhance, "format", "text")))
         else:
             _remove_trace_filter(handler)
             if getattr(handler.formatter, "_deerflow_trace_formatter", False):

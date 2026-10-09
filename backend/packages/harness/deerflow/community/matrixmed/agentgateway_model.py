@@ -18,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from langchain_openai import ChatOpenAI
 
+from deerflow.community.matrixmed.correlation import correlation_headers
 from deerflow.runtime.user_context import get_current_user
 
 
@@ -43,6 +44,7 @@ class _MatrixMedContextAuth(httpx.Auth):
             "subject": subject,
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        request.headers.update(correlation_headers())
         request.headers.pop("Authorization", None)
         request.headers["X-MatrixMed-Subject"] = subject
         request.headers["X-MatrixMed-Request-Id"] = request_id

@@ -19,6 +19,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from deerflow.community.matrixmed.correlation import correlation_headers
 from deerflow.config import get_app_config
 from deerflow.sandbox.identity import derive_sandbox_scope_token
 from deerflow.sandbox.runtime_identity import sandbox_project_key, sandbox_subject
@@ -100,7 +101,7 @@ class MatrixMedSandboxProvider(SandboxProvider):
         request = Request(
             f"{self._base_url}{path}",
             data=json.dumps(body, separators=(",", ":")).encode() if body is not None else None,
-            headers={"Content-Type": "application/json", **headers},
+            headers={"Content-Type": "application/json", **correlation_headers(), **headers},
             method=method,
         )
         try:

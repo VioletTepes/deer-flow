@@ -19,9 +19,11 @@ Accepted divergence: a crash-recovered scheduled launch reuses its run via the i
 
 `request_trace_context` (HTTP) deliberately does **not** inherit: a crafted header must not fall back to the previous request's id.
 
-`get_current_trace_id()` stays nullable only for the logging filter (pre-entry-point records render as `trace_id=-`); everything else uses `ensure_trace_id()`/`resolve_trace_id()`.
+`get_current_trace_id()` stays nullable only for the logging filter (pre-entry-point text records render as `trace_id=-`); everything else uses `ensure_trace_id()`/`resolve_trace_id()`.
 
 `DeerFlowClient.stream()` binds per `next()` step and around `inner.close()`, never across a `yield`: a sync generator shares the caller's context, so a scope held across yields would leak the id and break on cross-context GC finalization.
+
+Enhanced JSON logs use `correlation_id` for the ContextVar ID and `trace_id`/`span_id`/`segment_id` for an active optional SkyWalking agent; absent agent spans produce null trace fields. Text keeps the legacy request `trace_id` label and adds `skywalking_trace_id`. MatrixMed downstream calls carry `X-Correlation-ID` independently of their signed nonce; the agent owns `sw8` propagation.
 
 `logging.enhance.enabled` gates **log output only** (`trace_id` field presence and format) — not the id, the header, or the run metadata — so `TraceMiddleware` reads no `AppConfig`; `logging` stays restart-required (`STARTUP_ONLY_FIELDS["logging"]`). `X-Trace-Id` is in `CORS_EXPOSED_HEADERS` (not safelisted). Unhandled-exception 500s keep the header — `TraceMiddleware` sends its own plain 500 (CORS-opaque, see its docstring) before re-raising; mid-stream failures propagate unchanged.
 

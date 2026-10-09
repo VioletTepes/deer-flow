@@ -1618,3 +1618,5 @@ Your unwavering commitment and expertise have been the driving force behind Deer
 ## Star History
 
 [![Star History Chart](https://star-history.dera.page/svg?repos=bytedance/deer-flow&type=Date)](https://star-history.dera.page/#bytedance/deer-flow&Date)
+
+MatrixMed enhanced JSON logging separates request `correlation_id` from the active SkyWalking `trace_id`, `span_id`, and `segment_id`. Enable `logging.enhance.enabled: true` with `format: json`; the optional agent must be installed and started by the operator. Without an active span, trace fields are null. MatrixMed provider/model/MCP requests forward `X-Correlation-ID` without changing authentication signatures.

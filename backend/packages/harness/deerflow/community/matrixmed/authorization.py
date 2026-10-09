@@ -18,6 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from deerflow.authz.provider import AuthzDecision, AuthzReason, AuthzRequest, Principal
+from deerflow.community.matrixmed.correlation import correlation_headers
 
 
 class MatrixMedAuthorizationProvider:
@@ -68,6 +69,7 @@ class MatrixMedAuthorizationProvider:
         canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
         signature = hmac.new(self._secret.encode(), canonical, hashlib.sha256).hexdigest()
         return {
+            **correlation_headers(),
             "Content-Type": "application/json",
             "X-MatrixMed-Subject": subject,
             "X-MatrixMed-Request-Id": request_id,
